@@ -7,7 +7,24 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
     Loaded="Page_Loaded"
+    RequestedTheme="Dark"
     >
+    <Page.Resources>
+        <Flyout x:Key="FlyoutBase1">
+            <StackPanel>
+                <TextBlock Margin="5">
+                    <Run Text="Storage Account Connection String"/>
+                </TextBlock>
+                <TextBox x:Name="txtStorageAccountConnectionString" Margin="5" Width="400"/>
+                <MenuFlyoutSeparator/>
+                <TextBlock Margin="5">
+                    <Run Text="Container Name"/>
+                </TextBlock>
+                <TextBox x:Name="txtContainerName" Margin="5" Width="400"/>
+                <Button  Margin="10" Background="DarkGray" HorizontalAlignment="Right" Content="Update Files"/>
+            </StackPanel>
+        </Flyout>
+    </Page.Resources>
 
     <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
         <Grid.ColumnDefinitions>
@@ -15,56 +32,81 @@
             <ColumnDefinition/>
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
+            <RowDefinition Height="80"/>
             <RowDefinition Height="50"/>
             <RowDefinition Height="50"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="40"></RowDefinition>
         </Grid.RowDefinitions>
 
-        <TextBlock Margin="10" VerticalAlignment="Center"> File to Annotate </TextBlock>
-        <ComboBox x:Name="FileSelector" HorizontalAlignment="Stretch" Margin="140, 10, 10,10" Grid.ColumnSpan="2" SelectionChanged="FileSelector_SelectionChanged">
+        <CommandBar  IsOpen="True" Grid.ColumnSpan="2">
+            <AppBarButton Icon="Copy" Label="Files" Flyout="{StaticResource FlyoutBase1}"/>
+            <AppBarButton Icon="Rename" Label="Entities" AllowFocusOnInteraction="True">
+                <AppBarButton.Flyout>
+                    <Flyout x:Name="AnnotationsFlyout" >
+                        <StackPanel Width="420" Height="300">
+                            <TextBlock Margin="5">Add Entity</TextBlock>
+                            <TextBox x:Name="txtEntityName" Margin="5" Width="400" Text=""/>
+                            <Button  Margin="10" Background="DarkGray" HorizontalAlignment="Right" Click="AddEntityButton_Click">Add</Button>
+                            <TextBlock Margin="5">Delete Entity</TextBlock>
+                            <ComboBox x:Name="comboDeleteEntities" Margin="5" Width="400"></ComboBox>
+                            <Button  Margin="10" Background="DarkGray" HorizontalAlignment="Right" x:Name="DeleteEntity" Click="DeleteEntity_Click">Delete</Button>
+                        </StackPanel>
+                    </Flyout>
+                </AppBarButton.Flyout>
+            </AppBarButton>
+            <AppBarSeparator/>
+            <AppBarButton Icon="Play" Label="Train" />
+            <AppBarSeparator/>
+            <AppBarButton Icon="Find" Label="Search" />
+        </CommandBar>
+
+
+
+
+
+
+
+
+
+        <TextBlock  Grid.Row="1" Margin="10" VerticalAlignment="Center"> File to Annotate</TextBlock>
+        <ComboBox Grid.Row="1" Grid.Column="0"
+            x:Name="FileSelector" HorizontalAlignment="Stretch" Margin="140, 10, 10,10"  SelectionChanged="FileSelector_SelectionChanged">
         </ComboBox>
-        
-        <Pivot Grid.Row="1" Grid.ColumnSpan="1" Background="#EEEEEEEE">
-            <PivotItem Header="Raw Text"></PivotItem>
-            <PivotItem Header="PDF"></PivotItem>
-        </Pivot>
 
-        <Rectangle  Grid.Column="0" Grid.Row="2"   Fill="#EEEEEEEE" />
-
-        <ScrollViewer Background="White" Margin="5,0,5,5" Grid.Column="0" Grid.Row="2"  HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-        <RichTextBlock x:Name="DocumentView"  
+        <ScrollViewer Background="White" Margin="5,0,5,5" Grid.Column="0" Grid.Row="2" Grid.RowSpan="2"  HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <RichTextBlock x:Name="DocumentView"  
                        Margin="3"
                        RightTapped="DocumentView_RightTapped"
                        ContextMenuOpening="DocumentView_ContextMenuOpening" 
+                       RequestedTheme="Light"
                        >
-            <RichTextBlock.ContextFlyout>
-                <MenuFlyout>
-                    <MenuFlyoutItem Text="Mark same as last"></MenuFlyoutItem>
-                    <MenuFlyoutSeparator></MenuFlyoutSeparator>
-                    <MenuFlyoutSubItem Text="Mark as Entity..." >
-                        <MenuFlyoutItem Text="Medicine" />
-                        <MenuFlyoutItem Click="MenuFlyoutItem_Click" >Deadline</MenuFlyoutItem>
-                    </MenuFlyoutSubItem>
-                    <MenuFlyoutSubItem Text="Mark as Relation..." >
-                        <MenuFlyoutItem Click="MenuFlyoutItem_Click" >Owns</MenuFlyoutItem>
-                        <MenuFlyoutItem Click="MenuFlyoutItem_Click" >Demands</MenuFlyoutItem>
-                        <MenuFlyoutItem Click="MenuFlyoutItem_Click" >Provides</MenuFlyoutItem>
-                    </MenuFlyoutSubItem>
-                </MenuFlyout>
-            </RichTextBlock.ContextFlyout>
-            <Paragraph>
-                This is some sample text to
-                <Run FontStyle="Italic" Foreground="#FFA51717">demonstrate</Run> 
-                some properties.
-            </Paragraph>
-        </RichTextBlock>
+                <RichTextBlock.ContextFlyout>
+                    <MenuFlyout>
+                                               
+                        <MenuFlyoutSubItem x:Name="entityMenu" Text="Mark as Entity..." >
+                            <!-- MenuFlyoutItem Click="MenuFlyoutItem_Click" >Sample Entity</-->
+                        </MenuFlyoutSubItem>
+                        <MenuFlyoutSubItem Text="Mark as Relation..." >
+                            <MenuFlyoutItem Click="MenuFlyoutItem_Click" >Owns</MenuFlyoutItem>
+                            <MenuFlyoutItem Click="MenuFlyoutItem_Click" >Demands</MenuFlyoutItem>
+                            <MenuFlyoutItem Click="MenuFlyoutItem_Click" >Provides</MenuFlyoutItem>
+                        </MenuFlyoutSubItem>
+                    </MenuFlyout>
+                </RichTextBlock.ContextFlyout>
+                <Paragraph>
+                    This is some sample text to
+                    <Run FontStyle="Italic" Foreground="#FFA51717">demonstrate</Run>
+                    some properties.
+                </Paragraph>
+            </RichTextBlock>
         </ScrollViewer>
 
+        <Rectangle  Fill="#333333"  Grid.Row="4" Grid.ColumnSpan="2"/>
         <TextBlock  IsTextSelectionEnabled="True" Margin="10,5" Grid.Row="4" x:Name="OutputTextBlock">...</TextBlock>
-        
-        <StackPanel Grid.Column="1"  Margin="10,10,0,0" Grid.Row="1" Grid.RowSpan="2" HorizontalAlignment="Stretch" >
-            
+
+        <StackPanel Grid.Column="1"  Margin="10,10,0,0" Grid.Row="1" Grid.RowSpan="3" HorizontalAlignment="Stretch" >
+
             <TextBlock TextWrapping="Wrap" Text="Document Class" VerticalAlignment="Top"/>
             <ComboBox Margin="10" HorizontalAlignment="Stretch">
                 <ComboBoxItem>Class 1</ComboBoxItem>
@@ -75,15 +117,11 @@
             <TextBox Margin="10"></TextBox>
 
             <TextBlock TextWrapping="Wrap" Text="Entity Types" VerticalAlignment="Top"/>
-            <StackPanel Orientation="Horizontal" Margin="10">
-                <Rectangle Width="60" Height="40" Fill="Maroon"></Rectangle>
-                <TextBlock Margin="10" VerticalAlignment="Center">Release Date</TextBlock>
-            </StackPanel>
+
+            <ListView x:Name="entitiesList">
+            </ListView>
             
-            <StackPanel Orientation="Horizontal" Margin="10">
-                <Rectangle Width="60" Height="40" Fill="Aquamarine"></Rectangle>
-                <TextBlock Margin="10" VerticalAlignment="Center">People</TextBlock>
-            </StackPanel>
+            
         </StackPanel>
     </Grid>
 </Page>

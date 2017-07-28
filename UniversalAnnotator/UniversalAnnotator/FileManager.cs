@@ -17,16 +17,20 @@ namespace UniversalAnnotator
         // modify the lines below based on the values you received when the site was configured.
         // note that the connection string is only needed by the sample because it uploads some sample
         // data to create a recommendation model.
-        string storageAccountConnectionString = @"DefaultEndpointsProtocol=https;AccountName=luiscareco;AccountKey=/v4BhVyWMHo4eG3KjakPaqyvRSZNFgbmiotUBHhOsP0I2nw+L+Br8VBsZStCWAHFTgtQImj5rkdp1chJVaE8yw==;BlobEndpoint=https://luiscareco.blob.core.windows.net/;QueueEndpoint=https://luiscareco.queue.core.windows.net/;TableEndpoint=https://luiscareco.table.core.windows.net/;FileEndpoint=https://luiscareco.file.core.windows.net;";
-        string blobContainerName = "enricherdemo";
+
+        string storageAccountConnectionString; // = @"DefaultEndpointsProtocol=https;AccountName=luiscareco;AccountKey=/v4BhVyWMHo4eG3KjakPaqyvRSZNFgbmiotUBHhOsP0I2nw+L+Br8VBsZStCWAHFTgtQImj5rkdp1chJVaE8yw==;BlobEndpoint=https://luiscareco.blob.core.windows.net/;QueueEndpoint=https://luiscareco.queue.core.windows.net/;TableEndpoint=https://luiscareco.table.core.windows.net/;FileEndpoint=https://luiscareco.file.core.windows.net;";
+        string blobContainerName; // = "enricherdemo";
 
         CloudStorageAccount storageAccount;
         CloudBlobClient blobClient;
         CloudBlobContainer container;
 
 
-        public FileManager()
+        public FileManager(String storageAccountConnectionString, String blobContainerName)
         {
+            this.storageAccountConnectionString = storageAccountConnectionString;
+            this.blobContainerName = blobContainerName;
+
             storageAccount = CloudStorageAccount.Parse(storageAccountConnectionString);
             blobClient = storageAccount.CreateCloudBlobClient();
             container = blobClient.GetContainerReference(blobContainerName);

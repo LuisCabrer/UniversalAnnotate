@@ -17,6 +17,7 @@ using Windows.UI.Xaml.Documents;
 using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Navigation;
+using Windows.UI.Xaml.Shapes;
 
 // The Blank Page item template is documented at https://go.microsoft.com/fwlink/?LinkId=402352&clcid=0x409
 
@@ -28,6 +29,7 @@ namespace UniversalAnnotator
     public sealed partial class MainPage : Page
     {
         FileManager fileManager;
+        EntityCollection entityCollection = new EntityCollection();
         IndexedDocument currentDocument; 
 
         public MainPage()
@@ -35,10 +37,18 @@ namespace UniversalAnnotator
             this.InitializeComponent();
         }
 
-        private async void Page_Loaded(object sender, RoutedEventArgs e)
+        private void Page_Loaded(object sender, RoutedEventArgs e)
+        {
+            txtStorageAccountConnectionString.Text = @"DefaultEndpointsProtocol=https;AccountName=luiscareco;AccountKey=/v4BhVyWMHo4eG3KjakPaqyvRSZNFgbmiotUBHhOsP0I2nw+L+Br8VBsZStCWAHFTgtQImj5rkdp1chJVaE8yw==;BlobEndpoint=https://luiscareco.blob.core.windows.net/;QueueEndpoint=https://luiscareco.queue.core.windows.net/;TableEndpoint=https://luiscareco.table.core.windows.net/;FileEndpoint=https://luiscareco.file.core.windows.net;";
+            txtContainerName.Text = "enricherdemo";
+            UpdateFiles();
+        }
+
+
+        private async void UpdateFiles()
         {
             // Initialize
-            fileManager = new FileManager();
+            fileManager = new FileManager(txtStorageAccountConnectionString.Text, txtContainerName.Text);
 
             // Populate each of the controls.
             var blobItemList = await fileManager.GetFileList();
@@ -54,7 +64,6 @@ namespace UniversalAnnotator
                 FileSelector.SelectedIndex = 0;
             }
         }
-
 
         private async void FileSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -94,7 +103,20 @@ namespace UniversalAnnotator
 
                     // the anotation text.
                     string annotationText = currentDocument.RawText.Substring(annotation.StartOffset, annotation.EndOffset - annotation.StartOffset);
-                    p.Inlines.Add(new Run() { Text = annotationText, Foreground=new SolidColorBrush(Colors.Maroon) });
+
+                    EntityType entityType;
+                    entityCollection.TryGetValue(annotation.AnnotationName, out entityType);
+
+                    Color highlightColor = Colors.Maroon;
+
+                    if (entityType != null)
+                    {
+                        highlightColor = entityType.Color;
+                    }
+
+                    p.Inlines.Add(new Run() { Text = annotationText,
+                                              Foreground =new SolidColorBrush(highlightColor),
+                                              FontStyle = Windows.UI.Text.FontStyle.Italic});
 
                     lastOffset = annotation.EndOffset;
                 }
@@ -116,6 +138,7 @@ namespace UniversalAnnotator
 
         private void DocumentView_ContextMenuOpening(object sender, ContextMenuEventArgs e)
         {
+            /*
             // Sender must be RichTextBox.
             RichTextBlock rtb = sender as RichTextBlock;
             if (rtb == null) return;
@@ -127,8 +150,9 @@ namespace UniversalAnnotator
             //contextFlyout.Placement = FlyoutPlacementMode.Right;
 
             // Compute horizontal and vertical offsets to place the menu relative to selection end.
+            
             OutputTextBlock.Text = "Selected " + rtb.SelectedText;
-
+            
             var sb = new StringBuilder();
 
             foreach (var block in rtb.Blocks)
@@ -143,9 +167,13 @@ namespace UniversalAnnotator
             String result = sb.ToString();
 
 
+            */
+
+            OutputTextBlock.Text = "There are " + entityMenu.Items.Count + "items in entity menu.";
 
             // Finally, mark the event has handled.
             e.Handled = true;
+
         }
 
 
@@ -244,7 +272,7 @@ namespace UniversalAnnotator
         }
 
 
-        private void AddAnnotation()
+        private void AddAnnotation(EntityType entity)
         {
             // First remember the pointers so that we can use the Select method to extract different sections of the text.
             TextPointer selectionStart = DocumentView.SelectionStart;
@@ -258,7 +286,7 @@ namespace UniversalAnnotator
 
             DocumentView.Select(documentStart, selectionStart);
 
-            var newAnnotation = new Annotation(textBeforeSelection.Length, textBeforeSelection.Length + selection.Length, "Date", selection);
+            var newAnnotation = new Annotation(textBeforeSelection.Length, textBeforeSelection.Length + selection.Length, entity.Name, selection);
             currentDocument.Annotations.Add(newAnnotation.StartOffset, newAnnotation);
 
             UpdateDocumentView();
@@ -273,14 +301,19 @@ namespace UniversalAnnotator
         {
             if (String.IsNullOrEmpty(DocumentView.SelectedText))
             {
-                // We should have a selection already by now.
-                return; 
+                return;
             }
 
-            // check if we can find the hit tested word at that location.
-            //TextPointer p = DocumentView.SelectionStart;
+            // Get entity type from sender.
+            MenuFlyoutItem item = sender as MenuFlyoutItem;
+            String entityName = item.Text;
+            EntityType entityType;
+            entityCollection.TryGetValue(entityName, out entityType);
 
-            AddAnnotation();
+            if (entityType != null)
+            {
+                AddAnnotation(entityType);
+            }
             //HighlightAllTermsInDocument(DocumentView.SelectedText, new SolidColorBrush(Colors.Bisque));
         }
 
@@ -328,6 +361,72 @@ namespace UniversalAnnotator
             String selection = DocumentView.SelectedText;
         }
 
+        Random r = new Random();
 
+        private void AddEntityButton_Click(object sender, RoutedEventArgs e)
+        {
+            Color randomColor = Color.FromArgb((byte)255,(byte)r.Next(50, 200), (byte)r.Next(50, 200), (byte)r.Next(50, 200));
+            var entityType = new EntityType(txtEntityName.Text, randomColor);
+            entityCollection.AddEntity(entityType);
+
+            // Clear the text for the next insertion.
+            txtEntityName.Text = "";
+
+            AnnotationsFlyout.Hide();
+
+            UpdateEntityList();
+        }
+
+
+        private Panel CreateEntityVisual(EntityType entity)
+        {
+            var margin = new Thickness(10);
+
+            var sp = new StackPanel();
+            sp.Orientation = Orientation.Horizontal;
+            sp.Margin = margin;
+
+            Rectangle rect = new Rectangle() { Width = 60, Height = 40, Fill = new SolidColorBrush(entity.Color) };
+            var textBlock = new TextBlock() { Text = entity.Name, Margin = margin, VerticalAlignment = VerticalAlignment.Center };
+
+            sp.Children.Add(rect);
+            sp.Children.Add(textBlock);
+
+            return sp;
+        }
+
+        private void UpdateEntityList()
+        {
+            entityMenu.Items.Clear();
+            comboDeleteEntities.Items.Clear();
+            entitiesList.Items.Clear();
+
+            foreach (EntityType entity in entityCollection.Values)
+            {
+                // TODO: There must be a better way to do this -- bind the data to the visual... figure it out later.
+                MenuFlyoutItem item = new MenuFlyoutItem();
+                item.Text = entity.Name;
+                item.Click += MenuFlyoutItem_Click;
+                entityMenu.Items.Add(item);
+                
+                ComboBoxItem comboItem = new ComboBoxItem();
+                comboItem.Content = entity.Name;
+                comboDeleteEntities.Items.Add(comboItem);
+
+                entitiesList.Items.Add(CreateEntityVisual(entity));
+
+            }
+        }
+
+        private void DeleteEntity_Click(object sender, RoutedEventArgs e)
+        {
+            ComboBoxItem item = comboDeleteEntities.SelectedItem as ComboBoxItem;
+            if (item != null && (item.Content as String) != null)
+            {
+                entityCollection.Remove(item.Content as string);
+            }
+
+            UpdateEntityList();
+        }
     }
 }
