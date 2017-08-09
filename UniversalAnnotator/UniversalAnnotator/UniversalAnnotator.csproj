@@ -137,6 +137,12 @@
       <Version>8.2.1</Version>
     </PackageReference>
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PortableCommon\PortableCommon.csproj">
+      <Project>{be74f22e-6bca-4643-be0e-1c3440f46443}</Project>
+      <Name>PortableCommon</Name>
+    </ProjectReference>
+  </ItemGroup>
   <PropertyGroup Condition=" '$(VisualStudioVersion)' == '' or '$(VisualStudioVersion)' &lt; '14.0' ">
     <VisualStudioVersion>14.0</VisualStudioVersion>
   </PropertyGroup>

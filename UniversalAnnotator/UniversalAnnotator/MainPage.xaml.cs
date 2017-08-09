@@ -23,6 +23,8 @@ using Windows.UI.Xaml.Shapes;
 
 namespace UniversalAnnotator
 {
+    using PortableCommon.Contract;
+
     /// <summary>
     /// An empty page that can be used on its own or navigated to within a Frame.
     /// </summary>
@@ -286,7 +288,7 @@ namespace UniversalAnnotator
 
             DocumentView.Select(documentStart, selectionStart);
 
-            var newAnnotation = new Annotation(textBeforeSelection.Length, textBeforeSelection.Length + selection.Length, entity.Name, selection);
+            var newAnnotation = new Annotation(textBeforeSelection.Length, textBeforeSelection.Length + selection.Length, "some blob", entity.Name, selection);
             currentDocument.Annotations.Add(newAnnotation.StartOffset, newAnnotation);
 
             UpdateDocumentView();

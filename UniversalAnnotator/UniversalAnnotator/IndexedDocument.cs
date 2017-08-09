@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 
 namespace UniversalAnnotator
 {
+    using PortableCommon.Contract;
+
     public class IndexedDocument
     {
         // the entity that knows how to read the file.
@@ -35,22 +37,5 @@ namespace UniversalAnnotator
 
 
         public string RawText { get; set; }
-    }
-
-    public class Annotation
-    {
-        public Annotation(int startOffset, int endOffset, string annotationName, string expectedContent = null)
-        {
-            this.StartOffset = startOffset;
-            this.EndOffset = endOffset;
-            this.AnnotationName = annotationName;
-        }
-
-        public int StartOffset;
-        public int EndOffset;
-        public string AnnotationName;
-
-        // this one is here for debugging purposes -- to make sure we are highlighting the right content.
-        public string expectedContent;
     }
 }
