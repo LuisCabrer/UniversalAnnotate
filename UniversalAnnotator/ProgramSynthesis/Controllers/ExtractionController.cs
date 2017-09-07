@@ -29,7 +29,9 @@ namespace ProgramSynthesis.Controllers
 
         // POST api/train
         [HttpPost]
-        public async Task<Guid> Train([FromUri] string blobsFolder, [FromBody] IEnumerable<Annotation> annotations)
+        public async Task<Guid> Train([FromUri] string blobContainerName, 
+                                      [FromUri] string trainDirectory,
+                                      [FromBody] IEnumerable<Annotation> annotations)
         {
             // Check annoations
             var annotationsArr = annotations as Annotation[] ?? annotations.ToArray();
@@ -39,16 +41,21 @@ namespace ProgramSynthesis.Controllers
             }
 
             // Check blobs folder
-            var storageContainer = this.storageClient.GetContainerReference(blobsFolder);
+            var storageContainer = this.storageClient.GetContainerReference(blobContainerName);
             if (!storageContainer.Exists())
             {
-                throw new AggregateException($"{blobsFolder} does not exists");
+                throw new AggregateException($"{blobContainerName} does not exists");
             }
 
             var blobs = storageContainer.ListBlobs().ToArray();
+
+            var dir = storageContainer.GetDirectoryReference(trainDirectory);
+
+            blobs = dir.ListBlobs().ToArray();
+
             if (!blobs.Any())
             {
-                throw new AggregateException($"No blobs found in blobs folder {blobsFolder}");
+                throw new AggregateException($"No blobs found in blobs container: {blobContainerName}  folder: {trainDirectory}");
             }
 
             // Read annotations
@@ -92,19 +99,25 @@ namespace ProgramSynthesis.Controllers
         }
 
         [HttpGet]
-        public async Task<IEnumerable<Annotation>> Extract([FromUri] string blobsFolder, [FromUri] Guid programId)
+        public async Task<IEnumerable<Annotation>> Extract([FromUri] string blobContainerName,
+                                                           [FromUri] string scoreDirectory, 
+                                                           [FromUri] Guid programId)
         {
             // Check blobs folder
-            var storageContainer = this.storageClient.GetContainerReference(blobsFolder);
+            var storageContainer = this.storageClient.GetContainerReference(blobContainerName);
             if (!storageContainer.Exists())
             {
-                throw new AggregateException($"{blobsFolder} does not exists");
+                throw new AggregateException($"{blobContainerName} does not exists");
             }
 
-            var blobFiles = storageContainer.ListBlobs().Where(b => b as CloudBlockBlob != null).ToArray();
+            var dir = storageContainer.GetDirectoryReference(scoreDirectory);
+
+            //var blobs = dir.ListBlobs().ToArray();
+
+            var blobFiles = dir.ListBlobs().Where(b => b as CloudBlockBlob != null).ToArray();
             if (!blobFiles.Any())
             {
-                throw new AggregateException($"No blobs found in blobs folder {blobsFolder}");
+                throw new AggregateException($"No blobs found in blobs folder {scoreDirectory}");
             }
 
             var programBlobRef = storageContainer.GetBlobReference($"{programsFolder}/{programId:D}");
@@ -134,7 +147,7 @@ namespace ProgramSynthesis.Controllers
                 var content = await blob.DownloadTextAsync();
                 var stringRegion = extractor.Extract(content);
 
-                if (string.IsNullOrEmpty(stringRegion.Value))
+                if (stringRegion == null || string.IsNullOrEmpty(stringRegion.Value))
                 {
                     return new Annotation
                     {

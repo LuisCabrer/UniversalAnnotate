@@ -10,32 +10,19 @@ namespace UniversalAnnotator
 
     public class IndexedDocument
     {
-        // the entity that knows how to read the file.
-        private FileManager fileManager;
-        
         // Unique identifier for the file -- really a Uri
-        private string  fileName;
+        public string FileName;
 
-        private IndexedDocument()
+        public string RawText { get; set; }
+
+        public IndexedDocument(String fileName, String rawText)
         {
+            FileName = fileName;
+            RawText = rawText; // await fileManager.GetFileContent(name);
             Annotations = new SortedList<int, Annotation>();
-        }
-
-        public static async Task<IndexedDocument> Create(FileManager fileManager, String name)
-        {
-            IndexedDocument thisDoc = new IndexedDocument();
-
-            thisDoc.fileManager = fileManager;
-            thisDoc.fileName = name;
-            thisDoc.RawText = await fileManager.GetFileContent(name);
-
-            return thisDoc;
         }
 
         public SortedList<int, Annotation> Annotations
         { get; set;}
-
-
-        public string RawText { get; set; }
     }
 }

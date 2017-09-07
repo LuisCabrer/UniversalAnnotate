@@ -6,6 +6,9 @@ using System.Threading.Tasks;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
 using System.IO;
+using PortableCommon.Contract;
+using Newtonsoft.Json;
+using System.Diagnostics;
 
 namespace UniversalAnnotator
 {
@@ -18,14 +21,15 @@ namespace UniversalAnnotator
         // note that the connection string is only needed by the sample because it uploads some sample
         // data to create a recommendation model.
 
-        string storageAccountConnectionString; // = @"DefaultEndpointsProtocol=https;AccountName=luiscareco;AccountKey=/v4BhVyWMHo4eG3KjakPaqyvRSZNFgbmiotUBHhOsP0I2nw+L+Br8VBsZStCWAHFTgtQImj5rkdp1chJVaE8yw==;BlobEndpoint=https://luiscareco.blob.core.windows.net/;QueueEndpoint=https://luiscareco.queue.core.windows.net/;TableEndpoint=https://luiscareco.table.core.windows.net/;FileEndpoint=https://luiscareco.file.core.windows.net;";
-        string blobContainerName; // = "enricherdemo";
+        string storageAccountConnectionString; 
+        string blobContainerName; 
+
+        private Dictionary<string, IndexedDocument> indexedDocuments = new Dictionary<string, IndexedDocument>();
 
         CloudStorageAccount storageAccount;
         CloudBlobClient blobClient;
         CloudBlobContainer container;
-
-
+        
         public FileManager(String storageAccountConnectionString, String blobContainerName)
         {
             this.storageAccountConnectionString = storageAccountConnectionString;
@@ -39,21 +43,30 @@ namespace UniversalAnnotator
 
         public async Task<String> GetFileContent(string uri)
         {
+            string text = "";
             var blobReference = container.GetBlobReference(uri);
-            var stream = await blobReference.OpenReadAsync();
 
-            /*StreamReader reader = new StreamReader(stream);
-            string fileContent = reader.ReadToEnd();
-            return fileContent;
-            */
+            bool exists = await blobReference.ExistsAsync();
 
-            string text;
-            using (var memoryStream = new MemoryStream())
+            if (exists)
             {
-                await blobReference.DownloadToStreamAsync(memoryStream);
-                text = Encoding.UTF8.GetString(memoryStream.ToArray());
+                var stream = await blobReference.OpenReadAsync();
+
+
+                using (var memoryStream = new MemoryStream())
+                {
+                    await blobReference.DownloadToStreamAsync(memoryStream);
+                    text = Encoding.UTF8.GetString(memoryStream.ToArray());
+                }
             }
+
             return text;
+        }
+
+        public async Task PutFileContent(string uri, String content)
+        {
+            var blobReference = container.GetBlockBlobReference(uri);
+            await blobReference.UploadTextAsync(content);
         }
 
 
@@ -76,6 +89,110 @@ namespace UniversalAnnotator
         {
             var result = await ListBlobsAsync(null);
             return result;
+        }
+
+
+        public async Task<IndexedDocument> GetIndexedDocument(String fileName)
+        {
+            IndexedDocument result = null;
+
+            if (indexedDocuments.ContainsKey(fileName))
+            {
+                // If we already created it in the past, just return it.
+                result = indexedDocuments[fileName];
+            }
+
+            if (result == null)
+            {
+                string rawText = await GetFileContent(fileName);
+                
+                if (indexedDocuments.ContainsKey(fileName)) { result = indexedDocuments[fileName]; }
+
+                if( result == null)
+                {
+                    result = new IndexedDocument(fileName, rawText);
+                    indexedDocuments.Add(fileName, result);
+                }
+            }
+            return result;
+        }
+
+
+        public async void InitializeAnnotations()
+        {
+            string annotationsString = await GetFileContent("allAnnotations/allAnnotations.json");
+
+            List<Annotation> dsallAnnotations = JsonConvert.DeserializeObject<List<Annotation>>(annotationsString);
+
+            if (dsallAnnotations != null)
+            {
+                foreach (Annotation annotation in dsallAnnotations)
+                {
+                    // get the file -- or create a new one if it already exists.
+                    IndexedDocument newDocument = await GetIndexedDocument(annotation.FileName);
+                    newDocument.Annotations.Add(annotation.StartOffset, annotation);
+                }
+            }
+        }
+
+        public async Task<int> AddLearnedAnnotations(string learnedAnnotations)
+        {
+            string annotationsString = learnedAnnotations;
+
+            List<Annotation> dsallAnnotations = JsonConvert.DeserializeObject<List<Annotation>>(annotationsString);
+            int i = 0;
+
+            if (dsallAnnotations != null)
+            {   
+                for (i = 0; i<dsallAnnotations.Count; i++)
+                {
+                    // For some reason the iterator was not working well.. doing an old-fashioned for loop to debug.
+                    Annotation annotation = dsallAnnotations[i];
+
+                    // get the file -- or create a new one if it already exists.
+                    IndexedDocument newDocument = await GetIndexedDocument(annotation.FileName);
+                    annotation.AnnotationName = "Learned Date";
+
+                    if (!newDocument.Annotations.ContainsKey(annotation.StartOffset))
+                    {
+                        newDocument.Annotations.Add(annotation.StartOffset, annotation);
+                    }
+                }
+            }
+
+            return i;
+        }
+
+
+        public async Task<string> SaveAnnotations()
+        {
+            // Create JSON for all annotations.
+            List<Annotation> humanAnnotations = new List<Annotation>();
+            List<Annotation> learnedAnnotations = new List<Annotation>();
+
+            foreach (IndexedDocument document in indexedDocuments.Values)
+            {
+                foreach(Annotation annotation in document.Annotations.Values)
+                {
+                    if (!annotation.AnnotationName.Contains("Learned"))
+                    {
+                        humanAnnotations.Add(annotation);
+                    }
+                    else
+                    {
+                        learnedAnnotations.Add(annotation);
+                    }
+                }
+            }
+
+            string output = JsonConvert.SerializeObject(learnedAnnotations);
+            await PutFileContent("allAnnotations/learnedAnnotations.json", output);
+
+            // now that we flattened all the annotations, let's add them to a JSON file.
+            output = JsonConvert.SerializeObject(humanAnnotations);
+            await PutFileContent("allAnnotations/allAnnotations.json", output);
+
+            return output;
         }
     }
 }

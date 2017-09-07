@@ -56,7 +56,7 @@
                 </AppBarButton.Flyout>
             </AppBarButton>
             <AppBarSeparator/>
-            <AppBarButton Icon="Play" Label="Train" />
+            <AppBarButton x:Name="Train" Icon="Play" Label="Train" Click="Train_Click" />
             <AppBarSeparator/>
             <AppBarButton Icon="Find" Label="Search" />
         </CommandBar>

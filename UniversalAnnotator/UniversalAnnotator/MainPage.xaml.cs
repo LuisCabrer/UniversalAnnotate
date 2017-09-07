@@ -24,6 +24,10 @@ using Windows.UI.Xaml.Shapes;
 namespace UniversalAnnotator
 {
     using PortableCommon.Contract;
+    using System.Diagnostics;
+    using System.Net.Http;
+    using System.Net.Http.Headers;
+    using System.Threading.Tasks;
 
     /// <summary>
     /// An empty page that can be used on its own or navigated to within a Frame.
@@ -39,19 +43,37 @@ namespace UniversalAnnotator
             this.InitializeComponent();
         }
 
-        private void Page_Loaded(object sender, RoutedEventArgs e)
+        private async void Page_Loaded(object sender, RoutedEventArgs e)
         {
-            txtStorageAccountConnectionString.Text = @"DefaultEndpointsProtocol=https;AccountName=luiscareco;AccountKey=/v4BhVyWMHo4eG3KjakPaqyvRSZNFgbmiotUBHhOsP0I2nw+L+Br8VBsZStCWAHFTgtQImj5rkdp1chJVaE8yw==;BlobEndpoint=https://luiscareco.blob.core.windows.net/;QueueEndpoint=https://luiscareco.queue.core.windows.net/;TableEndpoint=https://luiscareco.table.core.windows.net/;FileEndpoint=https://luiscareco.file.core.windows.net;";
+
+            // Do some setup specific to the example we are working on.
+
+            txtStorageAccountConnectionString.Text = @"DefaultEndpointsProtocol=https;AccountName=luiscareco;AccountKey=REPLACEME;BlobEndpoint=https://luiscareco.blob.core.windows.net/;QueueEndpoint=https://luiscareco.queue.core.windows.net/;TableEndpoint=https://luiscareco.table.core.windows.net/;FileEndpoint=https://luiscareco.file.core.windows.net;";
             txtContainerName.Text = "enricherdemo";
+
+            //TODO: Get entity types from a config file in blob storage.
+            AddEntityType("Disease");
+            AddEntityType("Learned Date");
+            AddEntityType("Doctor Name");
+            AddEntityType("Date");
+
+            // TODO: Get file path from a config.
+            fileManager = new FileManager(txtStorageAccountConnectionString.Text, txtContainerName.Text);
+
+            fileManager.InitializeAnnotations();
+
+            //TODO: Get annotations from a config file in blob storage.
+            UpdateEntityList();
             UpdateFiles();
+
+            // Initialize annotations on each of those files.
+            
+            UpdateDocumentView();
         }
 
 
         private async void UpdateFiles()
         {
-            // Initialize
-            fileManager = new FileManager(txtStorageAccountConnectionString.Text, txtContainerName.Text);
-
             // Populate each of the controls.
             var blobItemList = await fileManager.GetFileList();
 
@@ -74,7 +96,7 @@ namespace UniversalAnnotator
             {
                 string fileName = e.AddedItems[0].ToString();
 
-                currentDocument = await IndexedDocument.Create(fileManager, fileName);
+                currentDocument = await fileManager.GetIndexedDocument(fileName);
                 UpdateDocumentView();
             }
         }
@@ -86,6 +108,7 @@ namespace UniversalAnnotator
         {
             DocumentView.Blocks.Clear();
 
+            if (currentDocument == null) return; // nothing to do here.
 
             Paragraph p = new Paragraph();
             // TODO actually insert annotiations.
@@ -171,7 +194,7 @@ namespace UniversalAnnotator
 
             */
 
-            OutputTextBlock.Text = "There are " + entityMenu.Items.Count + "items in entity menu.";
+            //OutputTextBlock.Text = "There are " + entityMenu.Items.Count + " items in entity menu.";
 
             // Finally, mark the event has handled.
             e.Handled = true;
@@ -288,7 +311,10 @@ namespace UniversalAnnotator
 
             DocumentView.Select(documentStart, selectionStart);
 
-            var newAnnotation = new Annotation(textBeforeSelection.Length, textBeforeSelection.Length + selection.Length, "some blob", entity.Name, selection);
+            // Remove non-alpha numeric characters from the end of the string.
+            string cleanSelection = CleanSelection(selection);
+
+            var newAnnotation = new Annotation(textBeforeSelection.Length, textBeforeSelection.Length + cleanSelection.Length, currentDocument.FileName, entity.Name, cleanSelection);
             currentDocument.Annotations.Add(newAnnotation.StartOffset, newAnnotation);
 
             UpdateDocumentView();
@@ -299,6 +325,31 @@ namespace UniversalAnnotator
             highlightRun.Foreground = new SolidColorBrush(Colors.Red);*/
 
         }
+
+        /// <summary>
+        /// Removes alphanumeric characters from the end of the string.
+        /// </summary>
+        /// <param name="selection"></param>
+        /// <returns></returns>
+        private string CleanSelection(string selection)
+        {
+            if (selection.Length <= 1) return selection;
+
+            int lastChar = selection.Length - 1;
+
+            while (selection[lastChar]=='\n' || selection[lastChar] == '\r' || selection[lastChar] == ' ')
+            {
+                lastChar--;
+
+                if (lastChar == 0)
+                {
+                    break;
+                }
+            }
+
+            return selection.Substring(0, lastChar + 1);
+        }
+
         private void MenuFlyoutItem_Click(object sender, RoutedEventArgs e)
         {
             if (String.IsNullOrEmpty(DocumentView.SelectedText))
@@ -367,18 +418,22 @@ namespace UniversalAnnotator
 
         private void AddEntityButton_Click(object sender, RoutedEventArgs e)
         {
-            Color randomColor = Color.FromArgb((byte)255,(byte)r.Next(50, 200), (byte)r.Next(50, 200), (byte)r.Next(50, 200));
-            var entityType = new EntityType(txtEntityName.Text, randomColor);
-            entityCollection.AddEntity(entityType);
+            AddEntityType(txtEntityName.Text);
 
             // Clear the text for the next insertion.
             txtEntityName.Text = "";
 
             AnnotationsFlyout.Hide();
-
             UpdateEntityList();
+
         }
 
+        private void AddEntityType(String entityName)
+        {
+            Color randomColor = Color.FromArgb((byte)255, (byte)r.Next(50, 200), (byte)r.Next(50, 200), (byte)r.Next(50, 200));
+            var entityType = new EntityType(entityName, randomColor);
+            entityCollection.AddEntity(entityType);
+        }
 
         private Panel CreateEntityVisual(EntityType entity)
         {
@@ -430,5 +485,93 @@ namespace UniversalAnnotator
 
             UpdateEntityList();
         }
+
+        private async void Train_Click(object sender, RoutedEventArgs e)
+        {
+            // First let's save all annotations in JSON format.
+
+            //Let's save annotations for all files.
+
+            string trainingData = await fileManager.SaveAnnotations();
+
+            string programId = await SendTrainRequest(trainingData);
+
+            if (programId == null)
+            {
+                // Setting this just for now so we can test the rest of the code.
+                programId = "cfe46b80-278c-4124-bcdb-2d93da5296a0";
+            }
+            string newAnnotations = await SendExtractRequest(programId);
+
+            if (newAnnotations != null)
+            {
+               int records = await fileManager.AddLearnedAnnotations(newAnnotations);
+            }
+
+            UpdateDocumentView();
+        }
+
+        private static readonly HttpClient client = new HttpClient();
+
+        /// <summary>
+        /// If successful, should return the guid for the model which can be used on an Extract Call
+        /// </summary>
+        /// <param name="trainingData"></param>
+        /// <returns></returns>
+        private async Task<string> SendTrainRequest(string trainingData)
+        {
+            var stringContent = new StringContent(trainingData);
+
+            stringContent.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+
+            var response = await client.PostAsync("http://localhost:2711/api/extraction/Train?blobContainerName=enricherdemo&trainDirectory=files", stringContent);
+            var responseString = await response.Content.ReadAsStringAsync();
+
+            Debug.WriteLine(responseString);
+
+            // TODO: Fix server so it sends actual HTTP responses messages
+            if (response.IsSuccessStatusCode)
+            {
+                return responseString;
+            }
+            else 
+            {
+                // Something bad happened. :-(
+                Debug.WriteLine(responseString);
+                return null;
+            }
+        }
+
+
+
+        /// <summary>
+        /// If successful, should return the guid for the model which can be used on an Extract Call
+        /// </summary>
+        /// <param name="trainingData"></param>
+        /// <returns></returns>
+        private async Task<string> SendExtractRequest(string programId)
+        {
+            char[] invalidChar = { '\"'};
+            string program = programId.Trim(invalidChar);
+
+            var response = await client.GetAsync("http://localhost:2711/api/extraction/Extract?blobContainerName=enricherdemo&scoreDirectory=files&programId="+ program);
+            var responseString = await response.Content.ReadAsStringAsync();
+
+            Debug.WriteLine(responseString);
+
+            // TODO: Fix server so it sends actual HTTP responses messages
+            if (response.IsSuccessStatusCode)
+            {
+                // TODO: Deserialize annotations as strings.
+                return responseString;
+            }
+            else
+            {
+                // Something bad happened. :-(
+                Debug.WriteLine(responseString);
+                return null;
+            }
+        }
+
     }
 }

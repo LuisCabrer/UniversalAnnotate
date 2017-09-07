@@ -12,6 +12,7 @@
             this.EndOffset = endOffset;
             this.FileName = fileName;
             this.AnnotationName = annotationName;
+            this.ExpectedContent = expectedContent;
         }
 
         public int StartOffset { set; get; }
@@ -20,6 +21,6 @@
         public string FileName { set; get; }
 
         // this one is here for debugging purposes -- to make sure we are highlighting the right content.
-        public string expectedContent { set; get; }
+        public string ExpectedContent { set; get; }
     }
 }
